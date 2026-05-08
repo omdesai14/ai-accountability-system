@@ -389,6 +389,152 @@ a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .avatar.emerald{ background: linear-gradient(135deg, var(--emerald), var(--teal)); }
 .buddy-name { font-size: 14px; font-weight: 600; color: var(--ink); }
 .buddy-meta { font-size: 11px; color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ── Smart notification banner ───────────────────────────── */
+.notif {
+    position: relative;
+    display: flex; align-items: flex-start; gap: 16px;
+    background:
+        radial-gradient(120% 100% at 0% 0%, rgba(178,156,255,0.14), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 22px 18px 26px;
+    margin: 6px 0 26px 0;
+    overflow: hidden;
+    animation: notifSlide 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes notifSlide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.notif::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--violet);
+}
+.notif.emerald::before { background: var(--emerald); }
+.notif.amber::before   { background: var(--amber); }
+.notif.rose::before    { background: var(--rose); }
+.notif.teal::before    { background: var(--teal); }
+.notif .em {
+    font-size: 30px; line-height: 1; flex-shrink: 0;
+    filter: drop-shadow(0 0 12px rgba(178,156,255,0.25));
+    animation: emojiPulse 2.6s ease-in-out infinite;
+}
+@keyframes emojiPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08) rotate(-3deg); }
+}
+.notif .ttl {
+    font-size: 16.5px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em; line-height: 1.3;
+}
+.notif .body {
+    font-size: 13px; color: var(--ink-dim);
+    line-height: 1.55; margin-top: 5px;
+}
+.notif .tag {
+    display: inline-block;
+    font-size: 10px; font-weight: 600;
+    color: var(--ink-faint);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+/* ── Calendar heatmap ────────────────────────────────────── */
+.cal-shell {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 22px 24px 18px 24px;
+    overflow-x: auto;
+}
+.cal-grid-wrap { display: flex; gap: 10px; align-items: flex-start; }
+.cal-daycol {
+    display: flex; flex-direction: column; gap: 4px;
+    padding-top: 22px;
+    margin-right: 4px;
+}
+.cal-daycol .cal-daylabel {
+    height: 14px; line-height: 14px;
+    font-size: 10px; color: var(--ink-faint);
+    letter-spacing: 0.1em;
+}
+.cal-grid {
+    display: flex; gap: 4px;
+    position: relative;
+}
+.cal-col { display: flex; flex-direction: column; gap: 4px; }
+.cal-month {
+    height: 18px;
+    font-size: 10px; color: var(--ink-faint);
+    letter-spacing: 0.16em; text-transform: uppercase;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: visible;
+}
+.cal-cell {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.02);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    cursor: default;
+    position: relative;
+}
+.cal-cell:hover {
+    transform: scale(1.55);
+    z-index: 2;
+}
+.cal-cell.done {
+    background: var(--emerald);
+    border-color: rgba(74,222,128,0.4);
+    box-shadow: 0 0 0 1px rgba(74,222,128,0.25), 0 0 10px rgba(74,222,128,0.35);
+}
+.cal-cell.missed {
+    background: var(--rose);
+    border-color: rgba(255,111,145,0.4);
+    box-shadow: 0 0 0 1px rgba(255,111,145,0.22);
+}
+.cal-cell.today {
+    box-shadow: 0 0 0 2px var(--ink), 0 0 14px rgba(255,255,255,0.5);
+}
+.cal-cell.future {
+    background: transparent;
+    border: 1px dashed rgba(255,255,255,0.07);
+}
+.cal-legend {
+    display: flex; gap: 18px; align-items: center;
+    margin-top: 16px;
+    font-size: 11px; color: var(--ink-faint);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 14px;
+}
+.cal-legend .swatch {
+    width: 12px; height: 12px; border-radius: 3px;
+    display: inline-block; margin-right: 8px; vertical-align: middle;
+}
+.cal-legend .sw-done   { background: var(--emerald); box-shadow: 0 0 8px rgba(74,222,128,0.4); }
+.cal-legend .sw-missed { background: var(--rose); }
+.cal-legend .sw-empty  { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.04); }
+.cal-summary {
+    display: flex; gap: 28px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-soft);
+}
+.cal-summary .item .num {
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em; line-height: 1;
+}
+.cal-summary .item .num.green { color: var(--emerald); }
+.cal-summary .item .num.rose  { color: var(--rose); }
+.cal-summary .item .lbl {
+    font-size: 10px; color: var(--ink-faint);
+    letter-spacing: 0.16em; text-transform: uppercase;
+    margin-top: 6px;
+}
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -419,6 +565,221 @@ def page_intro(eyebrow: str, headline: str, italic: str, subhead: str):
 
 def section(label: str):
     st.markdown(f'<div class="section-label">{label}</div>', unsafe_allow_html=True)
+
+
+# ──────────────────────────────────────────────────────────────
+# SMART NOTIFICATIONS — emoji-driven nudges based on behavior
+# ──────────────────────────────────────────────────────────────
+def get_smart_notification(stats, today_ci, check_ins, members, user_id, goal_id):
+    """Returns dict {tone, emoji, tag, title, body} based on user state."""
+    streak = stats.get("streak", 0)
+    rate = stats.get("completion_rate", 0)
+    missed = stats.get("missed_days", 0)
+
+    # Find buddy who already checked in today (if any)
+    buddy_done = None
+    for m in members:
+        if m["id"] == user_id:
+            continue
+        their_ci = get_check_in_for_date(goal_id, m["id"])
+        if their_ci and their_ci["completed"]:
+            buddy_done = m["username"]
+            break
+
+    # ── Already checked in today ─────────────────────────────
+    if today_ci and today_ci["completed"]:
+        if streak >= 30:
+            return {"tone":"emerald","emoji":"🏆","tag":"LEGENDARY",
+                    "title":f"{streak} days. You're in rare air.",
+                    "body":"Top 1% of consistency, statistically. Don't look down — keep climbing."}
+        if streak >= 14:
+            return {"tone":"emerald","emoji":"🔥","tag":"ON FIRE",
+                    "title":f"{streak} days strong. Momentum is yours.",
+                    "body":"You've crossed the hard part. Habits take 2 weeks to wire — you're past it."}
+        if streak >= 7:
+            return {"tone":"emerald","emoji":"⚡","tag":"LOCKED IN",
+                    "title":f"One full week. {streak} days down.",
+                    "body":"This is where most people quit. You're not most people."}
+        if streak >= 3:
+            return {"tone":"emerald","emoji":"🚀","tag":"TAKING OFF",
+                    "title":f"{streak} days. Engine's warm.",
+                    "body":"Three days is the dangerous one. You cleared it. Ride the wave."}
+        return {"tone":"emerald","emoji":"✅","tag":"DONE FOR TODAY",
+                "title":"Today is locked in. Come back tomorrow.",
+                "body":"That's how streaks are built — one boring, beautiful repetition at a time."}
+
+    # ── Logged today but missed ──────────────────────────────
+    if today_ci and not today_ci["completed"]:
+        return {"tone":"amber","emoji":"💪","tag":"COMEBACK MODE",
+                "title":"Today slipped. That's data, not failure.",
+                "body":"One miss doesn't delete the work. Tomorrow's check-in is where the comeback starts."}
+
+    # ── Pending check-in today ───────────────────────────────
+    if streak >= 14:
+        return {"tone":"rose","emoji":"⚠️","tag":"STREAK AT RISK",
+                "title":f"You're about to break a {streak}-day streak.",
+                "body":"Don't ruin it now. Two minutes of effort beats restarting from zero."}
+    if streak >= 7:
+        return {"tone":"rose","emoji":"🔥","tag":"DON'T BLOW IT",
+                "title":f"{streak}-day streak hangs on today.",
+                "body":"You're past the hard part. Skipping today wipes a full week of momentum."}
+    if streak >= 3:
+        return {"tone":"amber","emoji":"🔥","tag":"KEEP IT ALIVE",
+                "title":f"Your {streak}-day streak is on the line.",
+                "body":"Today's check-in keeps it breathing. Skip and you're back to day one."}
+    if buddy_done:
+        return {"tone":"violet","emoji":"👀","tag":"BUDDY ALERT",
+                "title":f"@{buddy_done} already checked in today.",
+                "body":"You don't want to be the one holding the team back. Your turn."}
+    if missed >= 3 and streak == 0:
+        return {"tone":"violet","emoji":"🌱","tag":"FRESH START",
+                "title":"Reset button. Today is day one — again.",
+                "body":"Comebacks beat unbroken streaks. Just one check-in to start the engine."}
+    if streak == 0 and rate == 0:
+        return {"tone":"violet","emoji":"🎯","tag":"DAY ZERO",
+                "title":"Plant the flag. Today is the start.",
+                "body":"The first check-in is the hardest. Once you hit it, the rest gets easier."}
+    return {"tone":"violet","emoji":"☀️","tag":"TODAY'S NUDGE",
+            "title":"Today is unwritten. Make it count.",
+            "body":"One check-in. Two minutes. That's all it takes to keep the rhythm going."}
+
+
+def render_notification(notif):
+    st.markdown(
+        f'<div class="notif {notif["tone"]}">'
+        f'<div class="em">{notif["emoji"]}</div>'
+        f'<div style="flex:1">'
+        f'<div class="tag">{notif["tag"]}</div>'
+        f'<div class="ttl">{notif["title"]}</div>'
+        f'<div class="body">{notif["body"]}</div>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# CALENDAR HEATMAP — GitHub-style contribution grid
+# ──────────────────────────────────────────────────────────────
+def render_calendar_heatmap(check_ins, weeks=14):
+    from datetime import date, timedelta
+    today = date.today()
+
+    status_by_date = {}
+    for ci in check_ins:
+        d = ci["check_in_date"]
+        if not isinstance(d, str):
+            d = d.isoformat()
+        status_by_date[d] = "done" if ci["completed"] else "missed"
+
+    # Start from Monday of (weeks-1) weeks ago
+    total_days = weeks * 7
+    start = today - timedelta(days=total_days - 1)
+    while start.weekday() != 0:  # 0 = Monday
+        start -= timedelta(days=1)
+
+    # Build columns (each column = one week, top=Mon → bottom=Sun)
+    end = today
+    while end.weekday() != 6:
+        end += timedelta(days=1)
+
+    columns = []
+    cur = start
+    while cur <= end:
+        col = [cur + timedelta(days=i) for i in range(7)]
+        columns.append(col)
+        cur += timedelta(days=7)
+
+    # Month labels: identify column index where each new month begins
+    month_starts = []  # list of (col_idx, label)
+    last_month = None
+    for idx, col in enumerate(columns):
+        first = col[0]
+        if first.month != last_month and first <= today:
+            month_starts.append((idx, first.strftime("%b").upper()))
+            last_month = first.month
+    # Drop labels that crowd the next one (need ≥3 cols of breathing room).
+    # Last label always kept — labels can overflow to the right freely.
+    keep = []
+    for i, (idx, label) in enumerate(month_starts):
+        if i + 1 < len(month_starts):
+            if month_starts[i + 1][0] - idx >= 3:
+                keep.append((idx, label))
+        else:
+            keep.append((idx, label))
+    keep_map = dict(keep)
+
+    month_row_html = '<div class="cal-grid" style="margin-bottom:2px">'
+    for idx in range(len(columns)):
+        label = keep_map.get(idx, "")
+        month_row_html += f'<div class="cal-month" style="width:14px">{label}</div>'
+    month_row_html += '</div>'
+
+    # Day cells
+    cells_html = '<div class="cal-grid">'
+    for col in columns:
+        col_html = '<div class="cal-col">'
+        for d in col:
+            iso = d.isoformat()
+            classes = ["cal-cell"]
+            if d > today:
+                classes.append("future")
+                title = f"{d.strftime('%b %-d, %Y')} — Upcoming"
+            else:
+                status = status_by_date.get(iso)
+                if status == "done":
+                    classes.append("done")
+                    title = f"{d.strftime('%b %-d, %Y')} — Completed"
+                elif status == "missed":
+                    classes.append("missed")
+                    title = f"{d.strftime('%b %-d, %Y')} — Missed"
+                else:
+                    title = f"{d.strftime('%b %-d, %Y')} — No check-in"
+            if d == today:
+                classes.append("today")
+            col_html += f'<div class="{" ".join(classes)}" title="{title}"></div>'
+        col_html += '</div>'
+        cells_html += col_html
+    cells_html += '</div>'
+
+    # Day-of-week sidebar (Mon, Wed, Fri)
+    day_labels = ["Mon", "", "Wed", "", "Fri", "", ""]
+    daycol_html = '<div class="cal-daycol">'
+    for lbl in day_labels:
+        daycol_html += f'<div class="cal-daylabel">{lbl}</div>'
+    daycol_html += '</div>'
+
+    # Summary numbers (across the displayed range only)
+    range_dates = {(start + timedelta(days=i)).isoformat()
+                   for i in range((today - start).days + 1)}
+    done_count = sum(1 for d, s in status_by_date.items() if d in range_dates and s == "done")
+    missed_count = sum(1 for d, s in status_by_date.items() if d in range_dates and s == "missed")
+    days_in_range = (today - start).days + 1
+    summary_html = (
+        '<div class="cal-summary">'
+        f'<div class="item"><div class="num green">{done_count}</div><div class="lbl">Completed</div></div>'
+        f'<div class="item"><div class="num rose">{missed_count}</div><div class="lbl">Missed</div></div>'
+        f'<div class="item"><div class="num">{days_in_range}</div><div class="lbl">Days tracked</div></div>'
+        '</div>'
+    )
+
+    legend_html = (
+        '<div class="cal-legend">'
+        '<span><span class="swatch sw-done"></span>Completed</span>'
+        '<span><span class="swatch sw-missed"></span>Missed</span>'
+        '<span><span class="swatch sw-empty"></span>No check-in</span>'
+        '</div>'
+    )
+
+    inner = (
+        f'{summary_html}'
+        f'<div class="cal-grid-wrap">'
+        f'  {daycol_html}'
+        f'  <div>{month_row_html}{cells_html}</div>'
+        f'</div>'
+        f'{legend_html}'
+    )
+    st.markdown(f'<div class="cal-shell">{inner}</div>', unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -741,6 +1102,11 @@ def page_today():
     members = get_goal_members(goal_id)
     is_shared = len(members) > 1
 
+    today_ci = get_check_in_for_date(goal_id, user_id)
+    recent_check_ins = get_check_ins(goal_id, user_id, days=14)
+    notif = get_smart_notification(stats, today_ci, recent_check_ins, members, user_id, goal_id)
+    render_notification(notif)
+
     section("YOUR STATS")
     c1, c2, c3 = st.columns(3)
     c1.markdown(stat_tile("Streak", stats["streak"], "d", "violet"), unsafe_allow_html=True)
@@ -879,12 +1245,23 @@ def page_progress():
                 unsafe_allow_html=True,
             )
 
+    section("CALENDAR")
+    cal_check_ins = get_check_ins(goal_id, user_id, days=120)
+    if not cal_check_ins:
+        st.markdown(
+            '<div class="card" style="text-align:center;color:#686B73;padding:36px">'
+            'No check-ins yet — your calendar will light up as you log days.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+    render_calendar_heatmap(cal_check_ins, weeks=14)
+
     section("CHECK-IN HISTORY")
     check_ins = get_check_ins(goal_id, user_id, days=30)
     if not check_ins:
-        st.markdown('<div class="muted">No check-ins yet.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="muted">No recent check-ins.</div>', unsafe_allow_html=True)
         return
-
     for ci in check_ins:
         cls = "done" if ci["completed"] else "missed"
         label = "Completed" if ci["completed"] else "Missed"
@@ -896,12 +1273,6 @@ def page_progress():
             f'{note_html}</div>',
             unsafe_allow_html=True,
         )
-
-    section("DAILY CHART")
-    import pandas as pd
-    chart_data = {ci["check_in_date"]: int(ci["completed"]) for ci in reversed(check_ins)}
-    df = pd.DataFrame({"Date": list(chart_data.keys()), "Completed": list(chart_data.values())}).set_index("Date")
-    st.bar_chart(df, color="#B29CFF", height=220)
 
 
 # ──────────────────────────────────────────────────────────────

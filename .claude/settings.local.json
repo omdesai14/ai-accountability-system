@@ -29,7 +29,8 @@
       "Bash(source /Users/omdesai/ai-accountability-system/.venv/bin/activate)",
       "Bash(streamlit run:*)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python3 -c \":*)"
     ]
   }
 }
