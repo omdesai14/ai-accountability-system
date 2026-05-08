@@ -1,0 +1,17 @@
+# Secrets & environment
+.env
+.streamlit/secrets.toml
+
+# Database (local only, not committed)
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store

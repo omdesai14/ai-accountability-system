@@ -1,0 +1,420 @@
+import streamlit as st
+from database import (
+    init_db,
+    create_goal,
+    get_active_goals,
+    get_goal,
+    deactivate_goal,
+    save_plan,
+    get_plan_for_date,
+    save_check_in,
+    get_check_in_for_date,
+    get_check_ins,
+    compute_stats,
+    maybe_adapt_difficulty,
+)
+from ai_engine import generate_daily_plan, generate_feedback, DIFFICULTY_LABELS
+
+st.set_page_config(
+    page_title="AI Accountability",
+    page_icon="🎯",
+    layout="centered",
+)
+
+init_db()
+
+# ── Custom CSS ────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* Global font */
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #0f0f0f;
+    border-right: 1px solid #222;
+}
+[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
+
+/* Stat cards */
+.stat-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    margin-bottom: 8px;
+}
+.stat-label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+.stat-value.green  { color: #4ade80; }
+.stat-value.yellow { color: #facc15; }
+.stat-value.red    { color: #f87171; }
+.stat-value.blue   { color: #60a5fa; }
+
+/* Goal card */
+.goal-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+}
+.goal-title { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.goal-meta  { font-size: 12px; color: #888; }
+
+/* Plan box */
+.plan-box {
+    background: #111827;
+    border-left: 3px solid #6366f1;
+    border-radius: 0 10px 10px 0;
+    padding: 18px 20px;
+    color: #d1d5db;
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 12px 0;
+}
+
+/* Status badge */
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.badge-green  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+.badge-red    { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+.badge-yellow { background: #1c1a00; color: #facc15; border: 1px solid #713f12; }
+
+/* Feedback box */
+.feedback-box {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 20px 22px;
+    color: #c9d1d9;
+    font-size: 15px;
+    line-height: 1.75;
+    margin-top: 16px;
+}
+
+/* Page title */
+.page-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+}
+.page-sub {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 24px;
+}
+
+/* Divider */
+.divider { border-top: 1px solid #222; margin: 20px 0; }
+
+/* Diff pill */
+.diff-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #1e1b4b;
+    color: #818cf8;
+    border: 1px solid #3730a3;
+}
+</style>
+""", unsafe_allow_html=True)
+
+CATEGORIES = ["Health & Fitness", "Learning", "Career", "Mindfulness", "Finance", "Other"]
+
+DIFF_COLOR = {1: "#4ade80", 2: "#86efac", 3: "#facc15", 4: "#fb923c", 5: "#f87171"}
+
+# ── Sidebar ───────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 🎯 Accountability")
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    page = st.radio("", ["Goals", "Today", "Progress", "AI Feedback"], label_visibility="collapsed")
+    st.markdown("---")
+    goals = get_active_goals()
+    st.markdown(f"<div style='font-size:12px;color:#555;'>Active goals: <b style='color:#888'>{len(goals)}</b></div>", unsafe_allow_html=True)
+
+
+# ── Helper ────────────────────────────────────────────────────
+def goal_selector(goals):
+    if not goals:
+        st.info("No active goals. Go to Goals to create one.")
+        return None, None
+    options = {g["title"]: g["id"] for g in goals}
+    title = st.selectbox("Select goal", list(options.keys()), label_visibility="collapsed")
+    return title, options[title]
+
+
+# ============================================================
+# PAGE: Goals
+# ============================================================
+def page_goals():
+    st.markdown('<div class="page-title">Your Goals</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Track what matters most to you.</div>', unsafe_allow_html=True)
+
+    with st.expander("＋  Create a new goal"):
+        with st.form("create_goal_form"):
+            title = st.text_input("Goal title", placeholder="e.g. Run 3x per week")
+            description = st.text_area("Why does this matter?", placeholder="Optional — describe what success looks like.")
+            category = st.selectbox("Category", CATEGORIES)
+            submitted = st.form_submit_button("Create Goal", type="primary")
+        if submitted:
+            if not title.strip():
+                st.error("Please enter a goal title.")
+            else:
+                create_goal(title.strip(), description.strip(), category)
+                st.success(f'Goal "{title}" created!')
+                st.rerun()
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    goals = get_active_goals()
+    if not goals:
+        st.markdown("<div style='color:#555;text-align:center;padding:40px 0'>No goals yet. Create one above.</div>", unsafe_allow_html=True)
+        return
+
+    for goal in goals:
+        diff = goal["difficulty"]
+        diff_label = DIFFICULTY_LABELS.get(diff, "?")
+        color = DIFF_COLOR.get(diff, "#888")
+
+        col1, col2 = st.columns([6, 1])
+        with col1:
+            st.markdown(f"""
+            <div class="goal-card">
+                <div class="goal-title">{goal['title']}</div>
+                <div class="goal-meta">
+                    {goal.get('category','')} &nbsp;·&nbsp;
+                    <span style="color:{color}">● {diff_label}</span>
+                </div>
+                {"<div style='margin-top:8px;font-size:13px;color:#666'>"+goal['description']+"</div>" if goal.get('description') else ""}
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            if st.button("Archive", key=f"arch_{goal['id']}"):
+                deactivate_goal(goal["id"])
+                st.rerun()
+
+
+# ============================================================
+# PAGE: Today
+# ============================================================
+def page_today():
+    st.markdown('<div class="page-title">Today\'s Check-In</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Generate your plan and log your progress.</div>', unsafe_allow_html=True)
+
+    goals = get_active_goals()
+    selected_title, goal_id = goal_selector(goals)
+    if not goal_id:
+        return
+
+    goal = get_goal(goal_id)
+    stats = compute_stats(goal_id)
+
+    # Mini stats row
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(f'<div class="stat-card"><div class="stat-label">Streak</div><div class="stat-value blue">{stats["streak"]}d</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="stat-card"><div class="stat-label">Completion</div><div class="stat-value {"green" if stats["completion_rate"]>=70 else "yellow" if stats["completion_rate"]>=40 else "red"}">{stats["completion_rate"]}%</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="stat-card"><div class="stat-label">Consistency</div><div class="stat-value">{stats["consistency_score"]}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    # Daily plan
+    st.markdown("#### Today's Plan")
+    existing_plan = get_plan_for_date(goal_id)
+
+    if existing_plan:
+        st.markdown(f'<div class="plan-box">{existing_plan["plan_text"].replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='color:#555;font-size:13px;margin-bottom:12px'>No plan generated yet for today.</div>", unsafe_allow_html=True)
+        if st.button("Generate Plan with AI", type="primary"):
+            with st.spinner("Building your plan..."):
+                try:
+                    plan_text = generate_daily_plan(goal, stats)
+                    save_plan(goal_id, plan_text)
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    # Check-in
+    st.markdown("#### Check In")
+    existing_ci = get_check_in_for_date(goal_id)
+
+    if existing_ci and not st.session_state.get("editing_ci"):
+        status_text = "Completed" if existing_ci["completed"] else "Missed"
+        badge_cls = "badge-green" if existing_ci["completed"] else "badge-red"
+        st.markdown(f'<div style="margin:8px 0"><span class="badge {badge_cls}">{status_text}</span></div>', unsafe_allow_html=True)
+        if existing_ci.get("notes"):
+            st.markdown(f'<div style="font-size:13px;color:#666;margin-top:6px">"{existing_ci["notes"]}"</div>', unsafe_allow_html=True)
+        if st.button("Edit check-in"):
+            st.session_state["editing_ci"] = True
+            st.rerun()
+    else:
+        with st.form("check_in_form"):
+            completed = st.radio(
+                "Did you complete today's task?",
+                ["Yes, I did it!", "No, I missed it"],
+                horizontal=True,
+            )
+            notes = st.text_input("Add a note (optional)", placeholder="What happened today?")
+            col_a, col_b = st.columns([2, 5])
+            with col_a:
+                submitted = st.form_submit_button("Save Check-In", type="primary")
+
+        if submitted:
+            is_done = completed.startswith("Yes")
+            save_check_in(goal_id, is_done, notes)
+            st.session_state.pop("editing_ci", None)
+
+            new_diff = maybe_adapt_difficulty(goal_id)
+            if new_diff:
+                direction = "up" if new_diff > goal["difficulty"] else "down"
+                st.success(f"Saved! Difficulty adjusted {direction} to **{DIFFICULTY_LABELS[new_diff]}**.")
+            elif is_done:
+                st.success("Logged. Keep the streak alive!")
+            else:
+                st.warning("Logged. Tomorrow is a new chance — don't quit.")
+            st.rerun()
+
+
+# ============================================================
+# PAGE: Progress
+# ============================================================
+def page_progress():
+    st.markdown('<div class="page-title">Progress</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Your stats over the last 30 days.</div>', unsafe_allow_html=True)
+
+    goals = get_active_goals()
+    selected_title, goal_id = goal_selector(goals)
+    if not goal_id:
+        return
+
+    stats = compute_stats(goal_id)
+
+    # Big stat cards
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown(f'<div class="stat-card"><div class="stat-label">Streak</div><div class="stat-value blue">{stats["streak"]}</div><div style="font-size:11px;color:#555;margin-top:4px">days</div></div>', unsafe_allow_html=True)
+    rate = stats["completion_rate"]
+    rate_color = "green" if rate >= 70 else "yellow" if rate >= 40 else "red"
+    c2.markdown(f'<div class="stat-card"><div class="stat-label">Completion</div><div class="stat-value {rate_color}">{rate}%</div></div>', unsafe_allow_html=True)
+    score = stats["consistency_score"]
+    score_color = "green" if score >= 70 else "yellow" if score >= 40 else "red"
+    c3.markdown(f'<div class="stat-card"><div class="stat-label">Consistency</div><div class="stat-value {score_color}">{score}</div><div style="font-size:11px;color:#555;margin-top:4px">/ 100</div></div>', unsafe_allow_html=True)
+    c4.markdown(f'<div class="stat-card"><div class="stat-label">Missed</div><div class="stat-value red">{stats["missed_days"]}</div><div style="font-size:11px;color:#555;margin-top:4px">days</div></div>', unsafe_allow_html=True)
+
+    # Completion bar
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+    st.markdown(f"**Completion rate**")
+    st.progress(int(stats["completion_rate"]))
+
+    st.markdown(f"**Consistency score**")
+    st.progress(int(stats["consistency_score"]))
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    # History
+    st.markdown("#### Check-In History")
+    check_ins = get_check_ins(goal_id, days=30)
+    if not check_ins:
+        st.markdown("<div style='color:#555;font-size:13px'>No check-ins yet.</div>", unsafe_allow_html=True)
+        return
+
+    for ci in check_ins:
+        badge_cls = "badge-green" if ci["completed"] else "badge-red"
+        label = "Done" if ci["completed"] else "Missed"
+        note_html = f"<span style='color:#555;font-size:12px;margin-left:10px'>{ci['notes']}</span>" if ci.get("notes") else ""
+        st.markdown(
+            f'<div style="padding:8px 0;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:12px">'
+            f'<span style="color:#555;font-size:13px;width:100px">{ci["check_in_date"]}</span>'
+            f'<span class="badge {badge_cls}">{label}</span>'
+            f'{note_html}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Chart
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+    st.markdown("#### Completion Chart")
+    import pandas as pd
+    chart_data = {ci["check_in_date"]: int(ci["completed"]) for ci in reversed(check_ins)}
+    df = pd.DataFrame({"Date": list(chart_data.keys()), "Completed": list(chart_data.values())}).set_index("Date")
+    st.bar_chart(df, color="#6366f1")
+
+
+# ============================================================
+# PAGE: AI Feedback
+# ============================================================
+def page_ai_feedback():
+    st.markdown('<div class="page-title">AI Feedback</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Honest, data-driven coaching based on your real history.</div>', unsafe_allow_html=True)
+
+    goals = get_active_goals()
+    selected_title, goal_id = goal_selector(goals)
+    if not goal_id:
+        return
+
+    goal = get_goal(goal_id)
+    stats = compute_stats(goal_id)
+    check_ins = get_check_ins(goal_id, days=14)
+
+    diff = goal["difficulty"]
+    diff_label = DIFFICULTY_LABELS.get(diff, "?")
+    diff_color = DIFF_COLOR.get(diff, "#888")
+
+    # Info row
+    c1, c2, c3, c4 = st.columns(4)
+    rate = stats["completion_rate"]
+    rate_color = "green" if rate >= 70 else "yellow" if rate >= 40 else "red"
+    score = stats["consistency_score"]
+    score_color = "green" if score >= 70 else "yellow" if score >= 40 else "red"
+
+    c1.markdown(f'<div class="stat-card"><div class="stat-label">Streak</div><div class="stat-value blue">{stats["streak"]}d</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="stat-card"><div class="stat-label">Completion</div><div class="stat-value {rate_color}">{rate}%</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="stat-card"><div class="stat-label">Consistency</div><div class="stat-value {score_color}">{score}</div></div>', unsafe_allow_html=True)
+    c4.markdown(f'<div class="stat-card"><div class="stat-label">Difficulty</div><div class="stat-value" style="color:{diff_color};font-size:16px">{diff_label}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+
+    if not check_ins:
+        st.markdown('<div style="color:#555;font-size:14px">Complete at least one check-in to get feedback.</div>', unsafe_allow_html=True)
+        return
+
+    if st.button("Get AI Feedback", type="primary"):
+        with st.spinner("Analyzing your behavior patterns..."):
+            try:
+                feedback = generate_feedback(goal, stats, check_ins)
+                st.markdown(f'<div class="feedback-box">{feedback.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+            except ValueError as e:
+                st.error(str(e))
+
+
+# ── Router ────────────────────────────────────────────────────
+if page == "Goals":
+    page_goals()
+elif page == "Today":
+    page_today()
+elif page == "Progress":
+    page_progress()
+elif page == "AI Feedback":
+    page_ai_feedback()
