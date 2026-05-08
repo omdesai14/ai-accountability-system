@@ -1,6 +1,8 @@
 import streamlit as st
 from database import (
     init_db,
+    create_user,
+    login_user,
     create_goal,
     get_active_goals,
     get_goal,
@@ -26,17 +28,14 @@ init_db()
 # ── Custom CSS ────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Global font */
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-/* Sidebar */
 [data-testid="stSidebar"] {
     background: #0f0f0f;
     border-right: 1px solid #222;
 }
 [data-testid="stSidebar"] * { color: #e0e0e0 !important; }
 
-/* Stat cards */
 .stat-card {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
@@ -63,7 +62,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stat-value.red    { color: #f87171; }
 .stat-value.blue   { color: #60a5fa; }
 
-/* Goal card */
 .goal-card {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
@@ -74,7 +72,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .goal-title { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 4px; }
 .goal-meta  { font-size: 12px; color: #888; }
 
-/* Plan box */
 .plan-box {
     background: #111827;
     border-left: 3px solid #6366f1;
@@ -86,7 +83,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     margin: 12px 0;
 }
 
-/* Status badge */
 .badge {
     display: inline-block;
     padding: 4px 12px;
@@ -98,7 +94,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .badge-red    { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; }
 .badge-yellow { background: #1c1a00; color: #facc15; border: 1px solid #713f12; }
 
-/* Feedback box */
 .feedback-box {
     background: #0d1117;
     border: 1px solid #30363d;
@@ -110,7 +105,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     margin-top: 16px;
 }
 
-/* Page title */
 .page-title {
     font-size: 26px;
     font-weight: 700;
@@ -123,26 +117,94 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     margin-bottom: 24px;
 }
 
-/* Divider */
 .divider { border-top: 1px solid #222; margin: 20px 0; }
 
-/* Diff pill */
-.diff-pill {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #1e1b4b;
-    color: #818cf8;
-    border: 1px solid #3730a3;
+.auth-box {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 16px;
+    padding: 36px 32px;
+    max-width: 420px;
+    margin: 60px auto 0 auto;
+}
+.auth-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+    text-align: center;
+}
+.auth-sub {
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+    margin-bottom: 24px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 CATEGORIES = ["Health & Fitness", "Learning", "Career", "Mindfulness", "Finance", "Other"]
-
 DIFF_COLOR = {1: "#4ade80", 2: "#86efac", 3: "#facc15", 4: "#fb923c", 5: "#f87171"}
+
+
+# ── Auth gate ─────────────────────────────────────────────────
+def show_auth():
+    st.markdown("""
+    <div style='text-align:center;margin-top:48px;margin-bottom:32px'>
+        <div style='font-size:40px'>🎯</div>
+        <div style='font-size:28px;font-weight:700;color:#fff;margin-top:8px'>AI Accountability</div>
+        <div style='font-size:14px;color:#555;margin-top:6px'>Your personal AI coach. Build habits that stick.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["Log In", "Create Account"])
+
+    with tab1:
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Log In", type="primary", use_container_width=True)
+        if submitted:
+            if not username or not password:
+                st.error("Please fill in both fields.")
+            else:
+                user = login_user(username, password)
+                if user:
+                    st.session_state["user"] = user
+                    st.rerun()
+                else:
+                    st.error("Incorrect username or password.")
+
+    with tab2:
+        with st.form("register_form"):
+            new_username = st.text_input("Choose a username")
+            new_password = st.text_input("Choose a password", type="password")
+            confirm = st.text_input("Confirm password", type="password")
+            submitted2 = st.form_submit_button("Create Account", type="primary", use_container_width=True)
+        if submitted2:
+            if not new_username or not new_password:
+                st.error("Please fill in all fields.")
+            elif new_password != confirm:
+                st.error("Passwords don't match.")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters.")
+            else:
+                try:
+                    user = create_user(new_username, new_password)
+                    st.session_state["user"] = user
+                    st.success("Account created! Welcome.")
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+
+
+# Check auth
+if "user" not in st.session_state:
+    show_auth()
+    st.stop()
+
+user = st.session_state["user"]
+user_id = user["id"]
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
@@ -150,8 +212,13 @@ with st.sidebar:
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     page = st.radio("", ["Goals", "Today", "Progress", "AI Feedback"], label_visibility="collapsed")
     st.markdown("---")
-    goals = get_active_goals()
+    goals = get_active_goals(user_id)
     st.markdown(f"<div style='font-size:12px;color:#555;'>Active goals: <b style='color:#888'>{len(goals)}</b></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:12px;color:#555;margin-top:4px'>Logged in as <b style='color:#888'>{user['username']}</b></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    if st.button("Log Out", use_container_width=True):
+        del st.session_state["user"]
+        st.rerun()
 
 
 # ── Helper ────────────────────────────────────────────────────
@@ -181,13 +248,13 @@ def page_goals():
             if not title.strip():
                 st.error("Please enter a goal title.")
             else:
-                create_goal(title.strip(), description.strip(), category)
+                create_goal(title.strip(), description.strip(), category, user_id)
                 st.success(f'Goal "{title}" created!')
                 st.rerun()
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    goals = get_active_goals()
+    goals = get_active_goals(user_id)
     if not goals:
         st.markdown("<div style='color:#555;text-align:center;padding:40px 0'>No goals yet. Create one above.</div>", unsafe_allow_html=True)
         return
@@ -223,7 +290,7 @@ def page_today():
     st.markdown('<div class="page-title">Today\'s Check-In</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Generate your plan and log your progress.</div>', unsafe_allow_html=True)
 
-    goals = get_active_goals()
+    goals = get_active_goals(user_id)
     selected_title, goal_id = goal_selector(goals)
     if not goal_id:
         return
@@ -231,7 +298,6 @@ def page_today():
     goal = get_goal(goal_id)
     stats = compute_stats(goal_id)
 
-    # Mini stats row
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="stat-card"><div class="stat-label">Streak</div><div class="stat-value blue">{stats["streak"]}d</div></div>', unsafe_allow_html=True)
     c2.markdown(f'<div class="stat-card"><div class="stat-label">Completion</div><div class="stat-value {"green" if stats["completion_rate"]>=70 else "yellow" if stats["completion_rate"]>=40 else "red"}">{stats["completion_rate"]}%</div></div>', unsafe_allow_html=True)
@@ -239,7 +305,6 @@ def page_today():
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    # Daily plan
     st.markdown("#### Today's Plan")
     existing_plan = get_plan_for_date(goal_id)
 
@@ -258,7 +323,6 @@ def page_today():
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-    # Check-in
     st.markdown("#### Check In")
     existing_ci = get_check_in_for_date(goal_id)
 
@@ -279,9 +343,7 @@ def page_today():
                 horizontal=True,
             )
             notes = st.text_input("Add a note (optional)", placeholder="What happened today?")
-            col_a, col_b = st.columns([2, 5])
-            with col_a:
-                submitted = st.form_submit_button("Save Check-In", type="primary")
+            submitted = st.form_submit_button("Save Check-In", type="primary")
 
         if submitted:
             is_done = completed.startswith("Yes")
@@ -306,14 +368,13 @@ def page_progress():
     st.markdown('<div class="page-title">Progress</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Your stats over the last 30 days.</div>', unsafe_allow_html=True)
 
-    goals = get_active_goals()
+    goals = get_active_goals(user_id)
     selected_title, goal_id = goal_selector(goals)
     if not goal_id:
         return
 
     stats = compute_stats(goal_id)
 
-    # Big stat cards
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f'<div class="stat-card"><div class="stat-label">Streak</div><div class="stat-value blue">{stats["streak"]}</div><div style="font-size:11px;color:#555;margin-top:4px">days</div></div>', unsafe_allow_html=True)
     rate = stats["completion_rate"]
@@ -324,17 +385,13 @@ def page_progress():
     c3.markdown(f'<div class="stat-card"><div class="stat-label">Consistency</div><div class="stat-value {score_color}">{score}</div><div style="font-size:11px;color:#555;margin-top:4px">/ 100</div></div>', unsafe_allow_html=True)
     c4.markdown(f'<div class="stat-card"><div class="stat-label">Missed</div><div class="stat-value red">{stats["missed_days"]}</div><div style="font-size:11px;color:#555;margin-top:4px">days</div></div>', unsafe_allow_html=True)
 
-    # Completion bar
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
     st.markdown(f"**Completion rate**")
     st.progress(int(stats["completion_rate"]))
-
     st.markdown(f"**Consistency score**")
     st.progress(int(stats["consistency_score"]))
 
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-
-    # History
     st.markdown("#### Check-In History")
     check_ins = get_check_ins(goal_id, days=30)
     if not check_ins:
@@ -353,7 +410,6 @@ def page_progress():
             unsafe_allow_html=True,
         )
 
-    # Chart
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
     st.markdown("#### Completion Chart")
     import pandas as pd
@@ -369,7 +425,7 @@ def page_ai_feedback():
     st.markdown('<div class="page-title">AI Feedback</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Honest, data-driven coaching based on your real history.</div>', unsafe_allow_html=True)
 
-    goals = get_active_goals()
+    goals = get_active_goals(user_id)
     selected_title, goal_id = goal_selector(goals)
     if not goal_id:
         return
@@ -382,7 +438,6 @@ def page_ai_feedback():
     diff_label = DIFFICULTY_LABELS.get(diff, "?")
     diff_color = DIFF_COLOR.get(diff, "#888")
 
-    # Info row
     c1, c2, c3, c4 = st.columns(4)
     rate = stats["completion_rate"]
     rate_color = "green" if rate >= 70 else "yellow" if rate >= 40 else "red"
