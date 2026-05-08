@@ -40,9 +40,6 @@ st.set_page_config(
 
 init_db()
 
-# ──────────────────────────────────────────────────────────────
-# THEME — dark editorial, matches the LinkedIn deck aesthetic
-# ──────────────────────────────────────────────────────────────
 THEME_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@1,400;1,600&family=JetBrains+Mono:wght@400&display=swap');
@@ -1380,9 +1377,6 @@ def page_inbox():
             st.rerun()
 
 
-# ──────────────────────────────────────────────────────────────
-# Router
-# ──────────────────────────────────────────────────────────────
 if page_key == "Goals":
     page_goals()
 elif page_key == "Today":
