@@ -1,4 +1,5 @@
 import streamlit as st
+import base64
 from PIL import Image
 from database import (
     init_db,
@@ -156,15 +157,16 @@ DIFF_COLOR = {1: "#4ade80", 2: "#86efac", 3: "#facc15", 4: "#fb923c", 5: "#f8717
 # ── Auth gate ─────────────────────────────────────────────────
 def show_auth():
     try:
-        logo = Image.open("logo.png")
-        col = st.columns([1, 2, 1])[1]
-        col.image(logo, width=120)
+        with open("logo.png", "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode()
+        logo_html = f'<img src="data:image/png;base64,{img_b64}" width="110" style="border-radius:22px">'
     except Exception:
-        st.markdown("<div style='text-align:center;font-size:40px;margin-top:48px'>🎯</div>", unsafe_allow_html=True)
+        logo_html = '<div style="font-size:48px">🎯</div>'
 
-    st.markdown("""
-    <div style='text-align:center;margin-top:12px;margin-bottom:32px'>
-        <div style='font-size:32px;font-weight:800;color:#fff;letter-spacing:-0.5px'>ZeroSkip</div>
+    st.markdown(f"""
+    <div style='text-align:center;margin-top:48px;margin-bottom:32px'>
+        {logo_html}
+        <div style='font-size:32px;font-weight:800;color:#fff;letter-spacing:-0.5px;margin-top:16px'>ZeroSkip</div>
         <div style='font-size:14px;color:#555;margin-top:6px'>Your personal AI coach. Build habits that stick.</div>
     </div>
     """, unsafe_allow_html=True)
@@ -221,8 +223,9 @@ user_id = user["id"]
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     try:
-        logo = Image.open("logo.png")
-        st.image(logo, width=48)
+        with open("logo.png", "rb") as f:
+            sb_b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f'<img src="data:image/png;base64,{sb_b64}" width="40" style="border-radius:10px;margin-bottom:4px">', unsafe_allow_html=True)
     except Exception:
         pass
     st.markdown("## ZeroSkip")
