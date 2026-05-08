@@ -1,4 +1,5 @@
 import streamlit as st
+from PIL import Image
 from database import (
     init_db,
     create_user,
@@ -17,9 +18,14 @@ from database import (
 )
 from ai_engine import generate_daily_plan, generate_feedback, DIFFICULTY_LABELS
 
+try:
+    _icon = Image.open("logo.png")
+except Exception:
+    _icon = "🎯"
+
 st.set_page_config(
-    page_title="AI Accountability",
-    page_icon="🎯",
+    page_title="ZeroSkip",
+    page_icon=_icon,
     layout="centered",
 )
 
@@ -149,10 +155,16 @@ DIFF_COLOR = {1: "#4ade80", 2: "#86efac", 3: "#facc15", 4: "#fb923c", 5: "#f8717
 
 # ── Auth gate ─────────────────────────────────────────────────
 def show_auth():
+    try:
+        logo = Image.open("logo.png")
+        col = st.columns([1, 2, 1])[1]
+        col.image(logo, width=120)
+    except Exception:
+        st.markdown("<div style='text-align:center;font-size:40px;margin-top:48px'>🎯</div>", unsafe_allow_html=True)
+
     st.markdown("""
-    <div style='text-align:center;margin-top:48px;margin-bottom:32px'>
-        <div style='font-size:40px'>🎯</div>
-        <div style='font-size:28px;font-weight:700;color:#fff;margin-top:8px'>AI Accountability</div>
+    <div style='text-align:center;margin-top:12px;margin-bottom:32px'>
+        <div style='font-size:32px;font-weight:800;color:#fff;letter-spacing:-0.5px'>ZeroSkip</div>
         <div style='font-size:14px;color:#555;margin-top:6px'>Your personal AI coach. Build habits that stick.</div>
     </div>
     """, unsafe_allow_html=True)
@@ -208,7 +220,12 @@ user_id = user["id"]
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🎯 Accountability")
+    try:
+        logo = Image.open("logo.png")
+        st.image(logo, width=48)
+    except Exception:
+        pass
+    st.markdown("## ZeroSkip")
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     page = st.radio("", ["Goals", "Today", "Progress", "AI Feedback"], label_visibility="collapsed")
     st.markdown("---")
