@@ -164,7 +164,7 @@ def show_auth():
         logo_html = '<div style="font-size:48px">🎯</div>'
 
     st.markdown(f"""
-    <div style='text-align:center;margin-top:48px;margin-bottom:32px'>
+    <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;margin-top:48px;margin-bottom:32px;width:100%'>
         {logo_html}
         <div style='font-size:32px;font-weight:800;color:#fff;letter-spacing:-0.5px;margin-top:16px'>ZeroSkip</div>
         <div style='font-size:14px;color:#555;margin-top:6px'>Your personal AI coach. Build habits that stick.</div>
