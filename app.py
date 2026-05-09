@@ -113,6 +113,60 @@ html, body, .stApp, [class*="css"] {
     .notif .ttl { font-size: 14.5px !important; }
 }
 
+/* ── Top nav pill bar (works on mobile + desktop) ────────── */
+.topnav-anchor { display: none; }
+.topnav-anchor + div [role="radiogroup"] {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding: 6px !important;
+    background: #111114 !important;
+    border: 1px solid #1F2126 !important;
+    border-radius: 12px !important;
+    margin-bottom: 22px !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.topnav-anchor + div [role="radiogroup"]::-webkit-scrollbar { display: none; }
+.topnav-anchor + div [role="radiogroup"] > label {
+    flex: 1 0 auto !important;
+    background: transparent !important;
+    border-radius: 8px !important;
+    padding: 9px 14px !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    transition: background 0.12s;
+    white-space: nowrap !important;
+    text-align: center;
+}
+.topnav-anchor + div [role="radiogroup"] > label:hover {
+    background: rgba(255,255,255,0.04) !important;
+}
+.topnav-anchor + div [role="radiogroup"] > label:has(input:checked) {
+    background: #fff !important;
+}
+.topnav-anchor + div [role="radiogroup"] > label > div:first-child { display: none !important; }
+.topnav-anchor + div [role="radiogroup"] > label p {
+    color: #AEB0B6 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em !important;
+    margin: 0 !important;
+}
+.topnav-anchor + div [role="radiogroup"] > label:has(input:checked) p {
+    color: #0A0A0C !important;
+}
+@media (max-width: 768px) {
+    .topnav-anchor + div [role="radiogroup"] > label {
+        flex: 0 0 auto !important;
+        padding: 9px 13px !important;
+    }
+    .topnav-anchor + div [role="radiogroup"] > label p {
+        font-size: 12.5px !important;
+    }
+}
+
 /* ── Sidebar ─────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
     background: #08080A !important;
@@ -978,14 +1032,7 @@ with st.sidebar:
     pending = get_pending_invites(user_id)
     inbox_label = f"Inbox ({len(pending)})" if pending else "Inbox"
 
-    st.markdown('<div style="font-size:10px;color:#686B73;letter-spacing:0.18em;margin:14px 0 10px 4px;font-weight:600">NAVIGATE</div>', unsafe_allow_html=True)
-    page = st.radio(
-        "nav",
-        ["Goals", "Today", "Progress", "AI Feedback", inbox_label],
-        label_visibility="collapsed",
-    )
-
-    st.markdown('<div style="height:18px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
     st.markdown('<div style="border-top:1px solid #1F2126;margin: 0 -8px 14px -8px"></div>', unsafe_allow_html=True)
 
     goals = get_active_goals(user_id)
@@ -1014,6 +1061,18 @@ with st.sidebar:
         del st.session_state["user"]
         st.rerun()
 
+
+# ──────────────────────────────────────────────────────────────
+# TOP NAV (visible on every screen size — mobile-safe)
+# ──────────────────────────────────────────────────────────────
+st.markdown('<div class="topnav-anchor"></div>', unsafe_allow_html=True)
+page = st.radio(
+    "topnav",
+    ["Goals", "Today", "Progress", "AI Feedback", inbox_label],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="topnav_radio",
+)
 
 # Normalize page label (strip the count from Inbox)
 page_key = "Inbox" if page.startswith("Inbox") else page
