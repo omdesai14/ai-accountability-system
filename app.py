@@ -23,8 +23,19 @@ from database import (
     get_check_ins,
     compute_stats,
     maybe_adapt_difficulty,
+    save_daily_mood,
+    get_daily_mood,
+    save_distraction,
+    get_distractions,
+    get_distraction_insights,
 )
-from ai_engine import generate_daily_plan, generate_feedback, DIFFICULTY_LABELS
+from ai_engine import (
+    generate_daily_plan,
+    generate_feedback,
+    generate_distraction_insight,
+    DIFFICULTY_LABELS,
+)
+from streak_card import generate_streak_card_png
 
 try:
     _icon = Image.open("logo.png")
@@ -72,8 +83,35 @@ html, body, .stApp, [class*="css"] {
 .stApp { background: var(--bg) !important; }
 .block-container { padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1080px; }
 
-/* Hide Streamlit chrome */
-#MainMenu, footer, header { visibility: hidden; }
+/* Hide Streamlit chrome — but keep sidebar collapse button visible (mobile nav!) */
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+/* Always show the sidebar collapse/expand control on every screen size */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+    z-index: 9999 !important;
+}
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="collapsedControl"] button {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    color: var(--ink) !important;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+@media (max-width: 768px) {
+    .block-container { padding-top: 3.4rem !important; padding-left: 1.1rem !important; padding-right: 1.1rem !important; }
+    .headline, .headline-italic { font-size: 32px !important; }
+    .stat .value { font-size: 24px !important; }
+    .notif { padding: 14px 16px 14px 20px !important; }
+    .notif .em { font-size: 26px !important; }
+    .notif .ttl { font-size: 14.5px !important; }
+}
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
@@ -438,6 +476,72 @@ a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
     margin-bottom: 6px;
 }
 
+/* ── Mood / Energy chooser ───────────────────────────────── */
+.mood-row {
+    display: flex; gap: 12px; margin: 8px 0 6px 0;
+    flex-wrap: wrap;
+}
+.mood-chip {
+    flex: 1; min-width: 140px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 18px 18px;
+    text-align: center;
+    transition: all 0.15s;
+}
+.mood-chip .em { font-size: 28px; line-height: 1; margin-bottom: 8px; }
+.mood-chip .lbl {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-dim);
+}
+.mood-chip .desc { font-size: 11px; color: var(--ink-faint); margin-top: 4px; }
+.mood-chip.active.low    { border-color: var(--rose);    box-shadow: 0 0 0 1px var(--rose),    0 0 18px rgba(255,111,145,0.25); }
+.mood-chip.active.normal { border-color: var(--violet);  box-shadow: 0 0 0 1px var(--violet),  0 0 18px rgba(178,156,255,0.25); }
+.mood-chip.active.high   { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald), 0 0 18px rgba(74,222,128,0.25); }
+.mood-chip.active .lbl   { color: var(--ink); }
+
+/* ── Distraction insight panel ───────────────────────────── */
+.distraction-bar-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+}
+.distraction-bar-label {
+    width: 130px; font-size: 12px; color: var(--ink-dim);
+    letter-spacing: 0.04em; flex-shrink: 0;
+}
+.distraction-bar-track {
+    flex: 1; height: 8px; background: rgba(255,255,255,0.05);
+    border-radius: 999px; overflow: hidden;
+}
+.distraction-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--rose), var(--amber));
+}
+.distraction-count {
+    width: 32px; text-align: right; font-size: 13px;
+    color: var(--ink); font-weight: 600; flex-shrink: 0;
+}
+
+/* ── Time honesty delta pill ─────────────────────────────── */
+.time-delta {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    border: 1px solid var(--border);
+    margin-top: 8px;
+}
+.time-delta.good { color: var(--emerald); border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.08); }
+.time-delta.bad  { color: var(--rose);    border-color: rgba(255,111,145,0.4); background: rgba(255,111,145,0.08); }
+.time-delta.ok   { color: var(--ink-dim); }
+
+/* ── Streak share card preview ───────────────────────────── */
+.share-hint {
+    font-size: 12px; color: var(--ink-faint);
+    letter-spacing: 0.04em; margin-top: 10px;
+}
+
 /* ── Calendar heatmap ────────────────────────────────────── */
 .cal-shell {
     background: var(--surface);
@@ -540,6 +644,13 @@ st.markdown(THEME_CSS, unsafe_allow_html=True)
 CATEGORIES = ["Health & Fitness", "Learning", "Career", "Mindfulness", "Finance", "Other"]
 DIFF_DOT = {1: "emerald", 2: "teal", 3: "amber", 4: "rose", 5: "violet"}
 AVATAR_TONES = ["", "teal", "amber", "emerald"]
+
+MOOD_OPTIONS = [
+    ("low",    "🪫", "LOW",    "Easy mode today"),
+    ("normal", "⚡", "NORMAL", "Run the standard play"),
+    ("high",   "🔥", "HIGH",   "Push it harder"),
+]
+TIME_OF_DAY_OPTIONS = ["Morning", "Afternoon", "Evening", "Late night"]
 
 
 def avatar_class_for(username: str) -> str:
@@ -1104,6 +1215,28 @@ def page_today():
     notif = get_smart_notification(stats, today_ci, recent_check_ins, members, user_id, goal_id)
     render_notification(notif)
 
+    # ── Mood / Energy selector ─────────────────────────────
+    section("HOW'S YOUR ENERGY TODAY?")
+    current_mood = get_daily_mood(user_id)
+    mood_cols = st.columns(len(MOOD_OPTIONS))
+    for i, (key, em, label, desc) in enumerate(MOOD_OPTIONS):
+        active = "active " + key if current_mood == key else ""
+        with mood_cols[i]:
+            if st.button(f"{em}  {label}", key=f"mood_{key}", use_container_width=True):
+                save_daily_mood(user_id, key)
+                st.rerun()
+            st.markdown(
+                f'<div class="muted" style="text-align:center;margin-top:-4px;font-size:11px">{desc}</div>',
+                unsafe_allow_html=True,
+            )
+            if active:
+                st.markdown(
+                    f'<div class="time-delta {"good" if key=="high" else "ok" if key=="normal" else "bad"}" '
+                    f'style="display:flex;justify-content:center;margin:6px auto 0 auto;width:fit-content">'
+                    f'SELECTED</div>',
+                    unsafe_allow_html=True,
+                )
+
     section("YOUR STATS")
     c1, c2, c3 = st.columns(3)
     c1.markdown(stat_tile("Streak", stats["streak"], "d", "violet"), unsafe_allow_html=True)
@@ -1125,7 +1258,7 @@ def page_today():
         if st.button("Generate Plan with AI", type="primary"):
             with st.spinner("Building your plan..."):
                 try:
-                    plan_text = generate_daily_plan(goal, stats)
+                    plan_text = generate_daily_plan(goal, stats, mood_energy=current_mood)
                     save_plan(goal_id, plan_text)
                     st.rerun()
                 except ValueError as e:
@@ -1136,7 +1269,28 @@ def page_today():
     if existing_ci and not st.session_state.get(f"editing_ci_{goal_id}"):
         badge = '<span class="badge done">Completed</span>' if existing_ci["completed"] else '<span class="badge missed">Missed</span>'
         note = f'<div style="font-size:13px;color:#AEB0B6;margin-top:8px">"{existing_ci["notes"]}"</div>' if existing_ci.get("notes") else ""
-        st.markdown(f'<div class="card">{badge}{note}</div>', unsafe_allow_html=True)
+
+        # Time-honesty pill if both expected & actual are present
+        time_html = ""
+        ta = existing_ci.get("time_actual_min")
+        te = existing_ci.get("time_expected_min")
+        if ta is not None and te is not None and te > 0:
+            ratio = ta / te
+            if ratio >= 0.9:
+                td_cls, td_text = "good", f"ON TIME · {ta}m / {te}m"
+            elif ratio >= 0.5:
+                td_cls, td_text = "ok", f"PARTIAL · {ta}m / {te}m"
+            else:
+                td_cls, td_text = "bad", f"SHORT · {ta}m / {te}m"
+            time_html = f'<div class="time-delta {td_cls}" style="margin-top:10px;display:inline-flex">{td_text}</div>'
+
+        mood_html = ""
+        if existing_ci.get("mood_energy"):
+            me = existing_ci["mood_energy"]
+            em = {"low": "🪫", "normal": "⚡", "high": "🔥"}.get(me, "")
+            mood_html = f'<div class="muted" style="margin-top:8px">ENERGY · {em} {me.upper()}</div>'
+
+        st.markdown(f'<div class="card">{badge}{mood_html}{time_html}{note}</div>', unsafe_allow_html=True)
         if st.button("Edit check-in", key=f"edit_{goal_id}"):
             st.session_state[f"editing_ci_{goal_id}"] = True
             st.rerun()
@@ -1148,16 +1302,109 @@ def page_today():
                 horizontal=True,
             )
             notes = st.text_input("Add a note (optional)", placeholder="What happened today?")
+            st.markdown(
+                '<div class="muted" style="margin-top:6px;margin-bottom:-4px">TIME HONESTY (optional)</div>',
+                unsafe_allow_html=True,
+            )
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                time_expected = st.number_input(
+                    "Expected (min)", min_value=0, max_value=600, step=5, value=0,
+                    help="How long you planned to spend",
+                )
+            with tc2:
+                time_actual = st.number_input(
+                    "Actual (min)", min_value=0, max_value=600, step=5, value=0,
+                    help="How long you really spent",
+                )
             submitted = st.form_submit_button("Save Check-In", type="primary")
         if submitted:
             is_done = completed.startswith("Yes")
-            save_check_in(goal_id, user_id, is_done, notes)
+            ta_val = int(time_actual) if time_actual > 0 else None
+            te_val = int(time_expected) if time_expected > 0 else None
+            save_check_in(
+                goal_id, user_id, is_done, notes,
+                mood_energy=current_mood,
+                time_actual_min=ta_val,
+                time_expected_min=te_val,
+            )
             st.session_state.pop(f"editing_ci_{goal_id}", None)
             new_diff = maybe_adapt_difficulty(goal_id, user_id)
             if new_diff:
                 direction = "up" if new_diff > goal["difficulty"] else "down"
                 st.success(f"Saved. Difficulty adjusted {direction} to {DIFFICULTY_LABELS[new_diff]}.")
             st.rerun()
+
+    # ── Distraction logger ─────────────────────────────────
+    section("LOG A DISTRACTION")
+    st.markdown(
+        '<div class="muted" style="margin-bottom:8px">'
+        'Slipped? Be honest. Patterns become visible only when you log them.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    with st.form(f"distraction_form_{goal_id}", clear_on_submit=True):
+        dc1, dc2 = st.columns([3, 2])
+        with dc1:
+            d_text = st.text_input(
+                "What distracted you?",
+                placeholder="e.g. scrolled instagram for 40 min",
+                label_visibility="collapsed",
+            )
+        with dc2:
+            d_when = st.selectbox(
+                "When?", TIME_OF_DAY_OPTIONS, label_visibility="collapsed",
+            )
+        d_submit = st.form_submit_button("Log Distraction")
+    if d_submit and d_text.strip():
+        save_distraction(goal_id, user_id, d_text, d_when)
+        st.toast("Logged. See patterns on the Progress page.", icon="📝")
+        st.rerun()
+
+    # Recent distractions (compact list)
+    recent_distractions = get_distractions(goal_id, user_id, days=7)
+    if recent_distractions:
+        st.markdown(
+            '<div class="muted" style="margin-top:14px;margin-bottom:6px">LAST 7 DAYS</div>',
+            unsafe_allow_html=True,
+        )
+        for d in recent_distractions[:5]:
+            st.markdown(
+                f'<div style="display:flex;align-items:center;gap:14px;padding:8px 0;border-bottom:1px solid #1F2126">'
+                f'<span style="color:#686B73;font-size:11px;width:90px;letter-spacing:0.04em">{d["log_date"]}</span>'
+                f'<span class="badge missed">{d["time_of_day"]}</span>'
+                f'<span style="color:#AEB0B6;font-size:13px">{d["distraction_text"]}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Share streak card ──────────────────────────────────
+    if stats["streak"] > 0:
+        section("SHARE YOUR STREAK")
+        st.markdown(
+            '<div class="share-hint" style="margin-bottom:10px">'
+            f"You've been showing up for <b>{stats['streak']}</b> day{'s' if stats['streak']!=1 else ''}. "
+            "Download the card and post it — accountability loves an audience."
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        try:
+            card_bytes = generate_streak_card_png(
+                user["username"], stats["streak"], goal["title"],
+            )
+            st.download_button(
+                label="Download Streak Card (PNG)",
+                data=card_bytes,
+                file_name=f"zeroskip-streak-{stats['streak']}d-{user['username']}.png",
+                mime="image/png",
+                type="primary",
+            )
+            st.image(card_bytes, width=320)
+        except Exception as e:
+            st.markdown(
+                f'<div class="muted">Card unavailable: {e}</div>',
+                unsafe_allow_html=True,
+            )
 
     if is_shared:
         section("BUDDY STATUS · TODAY")
@@ -1241,6 +1488,75 @@ def page_progress():
                 f'</div>',
                 unsafe_allow_html=True,
             )
+
+    # ── Distraction insights ──────────────────────────────
+    section("DISTRACTION PATTERNS")
+    insights = get_distraction_insights(goal_id, user_id, days=30)
+    if insights["total"] == 0:
+        st.markdown(
+            '<div class="card" style="text-align:center;color:#686B73;padding:28px">'
+            'No distractions logged in the last 30 days. Log them on the Today page when you slip — '
+            'patterns and insights will appear here.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        top_sources = insights["top_sources"][:6]
+        max_count = top_sources[0][1] if top_sources else 1
+        st.markdown(
+            f'<div class="muted" style="margin-bottom:8px">'
+            f'TOP SOURCES · last 30d · {insights["total"]} total</div>',
+            unsafe_allow_html=True,
+        )
+        rows_html = ""
+        for label, count in top_sources:
+            pct = int((count / max_count) * 100) if max_count else 0
+            rows_html += (
+                '<div class="distraction-bar-row">'
+                f'<div class="distraction-bar-label">{label}</div>'
+                '<div class="distraction-bar-track">'
+                f'<div class="distraction-bar-fill" style="width:{pct}%"></div>'
+                '</div>'
+                f'<div class="distraction-count">{count}</div>'
+                '</div>'
+            )
+        st.markdown(f'<div class="card">{rows_html}</div>', unsafe_allow_html=True)
+
+        # By time of day
+        time_rows = insights.get("by_time", {})
+        if time_rows:
+            tmax = max(time_rows.values())
+            tparts = ""
+            for t_label, t_count in time_rows.items():
+                tpct = int((t_count / tmax) * 100) if tmax else 0
+                tparts += (
+                    '<div class="distraction-bar-row">'
+                    f'<div class="distraction-bar-label">{t_label}</div>'
+                    '<div class="distraction-bar-track">'
+                    f'<div class="distraction-bar-fill" style="width:{tpct}%"></div>'
+                    '</div>'
+                    f'<div class="distraction-count">{t_count}</div>'
+                    '</div>'
+                )
+            st.markdown(
+                '<div class="muted" style="margin-top:18px;margin-bottom:8px">WHEN IT HAPPENS</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(f'<div class="card">{tparts}</div>', unsafe_allow_html=True)
+
+        # AI insight
+        if st.button("Get AI Insight", key="distraction_ai_btn", type="primary"):
+            with st.spinner("Reading your slip patterns..."):
+                try:
+                    di_recent = get_check_ins(goal_id, user_id, days=30)
+                    insight_text = generate_distraction_insight(goal, insights, di_recent)
+                    insight_html = insight_text.replace("\n", "<br>")
+                    st.markdown(
+                        f'<div class="panel teal" style="margin-top:12px">{insight_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+                except ValueError as e:
+                    st.error(str(e))
 
     section("CALENDAR")
     cal_check_ins = get_check_ins(goal_id, user_id, days=120)

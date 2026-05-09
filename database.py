@@ -84,6 +84,48 @@ def init_db():
     """)
     conn.commit()
 
+    # Migration: mood/energy + time honesty columns on check_ins
+    for col, decl in [
+        ("mood_energy", "TEXT"),
+        ("time_actual_min", "INTEGER"),
+        ("time_expected_min", "INTEGER"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE check_ins ADD COLUMN {col} {decl}")
+            conn.commit()
+        except Exception:
+            pass
+
+    # Distraction tracking
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS distractions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            distraction_text TEXT NOT NULL,
+            time_of_day TEXT,
+            log_date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (goal_id) REFERENCES goals(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    conn.commit()
+
+    # Daily mood — lightweight per-user-per-day record (not tied to a specific goal)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS daily_mood (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            log_date TEXT NOT NULL,
+            mood_energy TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, log_date),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    conn.commit()
+
     # Goal sharing: invitee gets access once status='accepted'
     c.execute("""
         CREATE TABLE IF NOT EXISTS goal_partners (
@@ -369,7 +411,8 @@ def get_plan_for_date(goal_id, plan_date=None):
 
 # --- Check-in operations (now per user_id) ---
 
-def save_check_in(goal_id, user_id, completed, notes=""):
+def save_check_in(goal_id, user_id, completed, notes="",
+                  mood_energy=None, time_actual_min=None, time_expected_min=None):
     today = str(date.today())
     conn = get_connection()
     conn.execute(
@@ -377,11 +420,114 @@ def save_check_in(goal_id, user_id, completed, notes=""):
         (goal_id, user_id, today),
     )
     conn.execute(
-        "INSERT INTO check_ins (goal_id, user_id, check_in_date, completed, notes) VALUES (?, ?, ?, ?, ?)",
-        (goal_id, user_id, today, int(completed), notes),
+        """INSERT INTO check_ins
+           (goal_id, user_id, check_in_date, completed, notes,
+            mood_energy, time_actual_min, time_expected_min)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (goal_id, user_id, today, int(completed), notes,
+         mood_energy, time_actual_min, time_expected_min),
     )
     conn.commit()
     conn.close()
+
+
+# --- Mood / energy ---
+
+def save_daily_mood(user_id, mood_energy):
+    today = str(date.today())
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO daily_mood (user_id, log_date, mood_energy) VALUES (?, ?, ?)
+           ON CONFLICT(user_id, log_date) DO UPDATE SET mood_energy = excluded.mood_energy""",
+        (user_id, today, mood_energy),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_daily_mood(user_id, check_date=None):
+    if check_date is None:
+        check_date = str(date.today())
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT mood_energy FROM daily_mood WHERE user_id = ? AND log_date = ?",
+        (user_id, check_date),
+    ).fetchone()
+    conn.close()
+    return row["mood_energy"] if row else None
+
+
+# --- Distractions ---
+
+def save_distraction(goal_id, user_id, distraction_text, time_of_day):
+    today = str(date.today())
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO distractions (goal_id, user_id, distraction_text, time_of_day, log_date)
+           VALUES (?, ?, ?, ?, ?)""",
+        (goal_id, user_id, distraction_text.strip(), time_of_day, today),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_distractions(goal_id, user_id, days=30):
+    since = str(date.today() - timedelta(days=days))
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM distractions
+           WHERE goal_id = ? AND user_id = ? AND log_date >= ?
+           ORDER BY created_at DESC""",
+        (goal_id, user_id, since),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_distraction_insights(goal_id, user_id, days=30):
+    """Aggregate distractions: top sources, time-of-day breakdown, total count."""
+    distractions = get_distractions(goal_id, user_id, days=days)
+    if not distractions:
+        return {"total": 0, "top_sources": [], "by_time": {}}
+
+    # Top sources — categorize by keyword match against the raw text
+    keywords = {
+        "Instagram":   ["instagram", "insta", "ig"],
+        "TikTok":      ["tiktok", "tik tok"],
+        "YouTube":     ["youtube", "yt"],
+        "Twitter / X": ["twitter", " x ", "tweet"],
+        "Reddit":      ["reddit"],
+        "Netflix":     ["netflix"],
+        "Phone / Texts": ["phone", "text", "message", "whatsapp", "imessage"],
+        "Games":       ["game", "gaming", "videogame"],
+        "Food":        ["food", "eating", "snack"],
+        "Sleep / Tired": ["sleep", "tired", "nap"],
+        "Work / Email": ["work", "email", "slack", "meeting"],
+        "Friends":     ["friend", "hangout", "party"],
+    }
+    source_counts = {}
+    other = 0
+    for d in distractions:
+        text = d["distraction_text"].lower()
+        matched = False
+        for label, kws in keywords.items():
+            if any(kw in text for kw in kws):
+                source_counts[label] = source_counts.get(label, 0) + 1
+                matched = True
+                break
+        if not matched:
+            other += 1
+    top_sources = sorted(source_counts.items(), key=lambda x: -x[1])
+    if other > 0:
+        top_sources.append(("Other", other))
+
+    # Time of day
+    by_time = {}
+    for d in distractions:
+        t = d.get("time_of_day") or "Unspecified"
+        by_time[t] = by_time.get(t, 0) + 1
+
+    return {"total": len(distractions), "top_sources": top_sources, "by_time": by_time}
 
 
 def get_check_in_for_date(goal_id, user_id, check_date=None):
